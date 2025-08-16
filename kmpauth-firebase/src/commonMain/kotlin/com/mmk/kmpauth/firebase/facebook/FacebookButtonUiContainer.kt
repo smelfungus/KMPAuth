@@ -3,6 +3,7 @@ package com.mmk.kmpauth.firebase.facebook
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.mmk.kmpauth.core.UiContainerScope
+import com.mmk.kmpauth.firebase.domain.FacebookSignInResult
 import dev.gitlive.firebase.auth.FirebaseUser
 
 /**
@@ -32,7 +33,7 @@ public expect fun FacebookButtonUiContainer(
         FacebookSignInRequestScope.PublicProfile,
         FacebookSignInRequestScope.Email
     ),
-    onResult: (Result<FirebaseUser?>) -> Unit,
+    onResult: (Result<FacebookSignInResult?>) -> Unit,
     linkAccount: Boolean = false,
     content: @Composable UiContainerScope.() -> Unit,
 )

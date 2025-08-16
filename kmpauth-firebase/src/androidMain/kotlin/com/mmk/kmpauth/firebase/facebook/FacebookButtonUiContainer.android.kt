@@ -21,10 +21,11 @@ import com.mmk.kmpauth.core.KMPAuthInternalApi
 import com.mmk.kmpauth.core.UiContainerScope
 import com.mmk.kmpauth.core.getActivity
 import com.mmk.kmpauth.core.logger.currentLogger
+import com.mmk.kmpauth.firebase.domain.FacebookCredentialPayload
+import com.mmk.kmpauth.firebase.domain.FacebookSignInResult
 
 import dev.gitlive.firebase.Firebase
 import dev.gitlive.firebase.auth.FacebookAuthProvider
-import dev.gitlive.firebase.auth.FirebaseUser
 import dev.gitlive.firebase.auth.auth
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -56,7 +57,7 @@ private val loginManager: LoginManager by lazy { LoginManager.getInstance() }
 public actual fun FacebookButtonUiContainer(
     modifier: Modifier,
     requestScopes: List<FacebookSignInRequestScope>,
-    onResult: (Result<FirebaseUser?>) -> Unit,
+    onResult: (Result<FacebookSignInResult?>) -> Unit,
     linkAccount: Boolean,
     content: @Composable (UiContainerScope.() -> Unit)
 ) {
@@ -100,16 +101,42 @@ public actual fun FacebookButtonUiContainer(
 private fun facebookSignInCallback(
     coroutineScope: CoroutineScope,
     linkAccount: Boolean,
-    updatedOnResult: (Result<FirebaseUser?>) -> Unit
+    updatedOnResult: (Result<FacebookSignInResult?>) -> Unit
 ): FacebookCallback<LoginResult> = object : FacebookCallback<LoginResult> {
     override fun onSuccess(result: LoginResult) {
         currentLogger.log("Facebook Login successful, attempting to sign in with Firebase")
         val accessToken = result.accessToken.token
+        val userId = result.accessToken.userId
         val authCredential = FacebookAuthProvider.credential(accessToken)
         coroutineScope.launch {
             try {
                 val auth = Firebase.auth
                 val currentUser = auth.currentUser
+
+                if (linkAccount && currentUser != null) {
+                    val linked =
+                        currentUser.providerData.firstOrNull { it.providerId == "facebook.com" }
+                    if (linked != null) {
+                        // Already linked
+                        if (linked.uid == userId) {
+                            // Same FB account → success (no-op)
+                            updatedOnResult(
+                                Result.success(
+                                    FacebookSignInResult(
+                                        user = currentUser,
+                                        credential = FacebookCredentialPayload.AccessToken(
+                                            token = accessToken,
+                                        ),
+                                    ),
+                                )
+                            )
+                            return@launch
+                        } else {
+                            // TODO: Handle different FB account is already linked
+                        }
+                    }
+                }
+
                 val firebaseAuthResult = if (linkAccount && currentUser != null) {
                     currentLogger.log("Linking Facebook account with current firebase user: ${currentUser.uid}")
                     currentUser.linkWithCredential(authCredential)
@@ -123,7 +150,11 @@ private fun facebookSignInCallback(
                     updatedOnResult(Result.failure(IllegalStateException("Firebase user is null")))
                 } else {
                     currentLogger.log("Firebase sign-in successful")
-                    updatedOnResult(Result.success(user))
+                    val result = FacebookSignInResult(
+                        user = user,
+                        credential = FacebookCredentialPayload.AccessToken(token = accessToken),
+                    )
+                    updatedOnResult(Result.success(result))
                 }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e

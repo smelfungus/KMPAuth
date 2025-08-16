@@ -13,6 +13,8 @@ import cocoapods.FBSDKLoginKit.FBSDKLoginTrackingLimited
 import com.mmk.kmpauth.core.KMPAuthInternalApi
 import com.mmk.kmpauth.core.UiContainerScope
 import com.mmk.kmpauth.core.logger.currentLogger
+import com.mmk.kmpauth.firebase.domain.FacebookCredentialPayload
+import com.mmk.kmpauth.firebase.domain.FacebookSignInResult
 import dev.gitlive.firebase.Firebase
 import dev.gitlive.firebase.auth.FirebaseUser
 import dev.gitlive.firebase.auth.OAuthProvider
@@ -54,7 +56,7 @@ import kotlin.coroutines.cancellation.CancellationException
 public actual fun FacebookButtonUiContainer(
     modifier: Modifier,
     requestScopes: List<FacebookSignInRequestScope>,
-    onResult: (Result<FirebaseUser?>) -> Unit,
+    onResult: (Result<FacebookSignInResult?>) -> Unit,
     linkAccount: Boolean,
     content: @Composable UiContainerScope.() -> Unit,
 ) {
@@ -85,13 +87,14 @@ public actual fun FacebookButtonUiContainer(
                 }
 
                 val nonce = generateNonce()
+                val hashedNonce = sha256(nonce)
 
                 loginManager.logInFromViewController(
                     rootVC,
                     FBSDKLoginConfiguration(
                         permissions = permissions,
                         tracking = FBSDKLoginTrackingLimited,
-                        nonce = sha256(nonce),
+                        nonce = hashedNonce,
                     ),
                     completion = { result, error ->
                         if (error != null) {
@@ -106,18 +109,39 @@ public actual fun FacebookButtonUiContainer(
 
                         coroutineScope.launch {
                             try {
-                                val idTokenString =
+                                val idToken =
                                     result?.authenticationToken()?.tokenString() ?: ""
+                                val userId =
+                                    result.authenticationToken()?.userID() ?: ""
 
                                 val credential = OAuthProvider.credential(
                                     providerId = "facebook.com",
-                                    idToken = idTokenString,
+                                    idToken = idToken,
                                     rawNonce = nonce
                                 )
 
                                 val auth = Firebase.auth
                                 val currentUser = auth.currentUser
 
+                                if (linkAccount && currentUser != null) {
+                                    val linked =
+                                        currentUser.providerData.firstOrNull { it.providerId == "facebook.com" }
+                                    // TODO: Handle different FB account is already linked
+                                    if (linked != null && userId.isNotEmpty() && linked.uid == userId) {
+                                        updatedOnResultFunc(
+                                            Result.success(
+                                                FacebookSignInResult(
+                                                    user = currentUser,
+                                                    credential = FacebookCredentialPayload.IdTokenWithNonce(
+                                                        idToken = idToken,
+                                                        nonce = nonce,
+                                                    )
+                                                )
+                                            )
+                                        )
+                                        return@launch
+                                    }
+                                }
 
                                 val firebaseAuthResult = if (linkAccount && currentUser != null) {
                                     currentLogger.log("Linking Facebook account with current firebase user: ${currentUser.uid}")
@@ -133,7 +157,14 @@ public actual fun FacebookButtonUiContainer(
                                     updatedOnResultFunc(Result.failure(IllegalStateException("Firebase user is null")))
                                 } else {
                                     currentLogger.log("Firebase sign-in successful")
-                                    updatedOnResultFunc(Result.success(user))
+                                    val result = FacebookSignInResult(
+                                        user = user,
+                                        credential = FacebookCredentialPayload.IdTokenWithNonce(
+                                            idToken = idToken,
+                                            nonce = nonce,
+                                        ),
+                                    )
+                                    updatedOnResultFunc(Result.success(result))
                                 }
 
                             } catch (e: Exception) {

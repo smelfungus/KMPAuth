@@ -5,14 +5,14 @@ import androidx.compose.ui.Modifier
 import com.mmk.kmpauth.core.KMPAuthInternalApi
 import com.mmk.kmpauth.core.UiContainerScope
 import com.mmk.kmpauth.core.logger.currentLogger
-import dev.gitlive.firebase.auth.FirebaseUser
+import com.mmk.kmpauth.firebase.domain.FacebookSignInResult
 
 @OptIn(KMPAuthInternalApi::class)
 @Composable
 public actual fun FacebookButtonUiContainer(
     modifier: Modifier,
     requestScopes: List<FacebookSignInRequestScope>,
-    onResult: (Result<FirebaseUser?>) -> Unit,
+    onResult: (Result<FacebookSignInResult?>) -> Unit,
     linkAccount: Boolean,
     content: @Composable (UiContainerScope.() -> Unit)
 ) {
