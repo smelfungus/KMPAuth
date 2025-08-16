@@ -108,26 +108,29 @@ public actual fun FacebookButtonUiContainer(
                         }
 
                         coroutineScope.launch {
+                            val idToken = result?.authenticationToken()?.tokenString()
+                                ?: run {
+                                    updatedOnResultFunc(Result.failure(IllegalStateException("No Facebook ID token")))
+                                    return@launch
+                                }
+
+                            val facebookUid = fbUidFromIdToken(idToken)
+
+                            val credential = OAuthProvider.credential(
+                                providerId = "facebook.com",
+                                idToken = idToken,
+                                rawNonce = nonce
+                            )
+
                             try {
-                                val idToken =
-                                    result?.authenticationToken()?.tokenString() ?: ""
-                                val userId =
-                                    result.authenticationToken()?.userID() ?: ""
-
-                                val credential = OAuthProvider.credential(
-                                    providerId = "facebook.com",
-                                    idToken = idToken,
-                                    rawNonce = nonce
-                                )
-
                                 val auth = Firebase.auth
                                 val currentUser = auth.currentUser
 
-                                if (linkAccount && currentUser != null) {
+                                // If already linked to the SAME FB account → success (no-op)
+                                if (linkAccount && currentUser != null && !facebookUid.isNullOrEmpty()) {
                                     val linked =
                                         currentUser.providerData.firstOrNull { it.providerId == "facebook.com" }
-                                    // TODO: Handle different FB account is already linked
-                                    if (linked != null && userId.isNotEmpty() && linked.uid == userId) {
+                                    if (linked != null && linked.uid == facebookUid) {
                                         updatedOnResultFunc(
                                             Result.success(
                                                 FacebookSignInResult(
@@ -169,8 +172,53 @@ public actual fun FacebookButtonUiContainer(
 
                             } catch (e: Exception) {
                                 if (e is CancellationException) throw e
-                                currentLogger.log("Firebase sign-in failed with error: ${e.message}")
-                                updatedOnResultFunc(Result.failure(e))
+
+                                val msg = (e.message ?: "")
+
+                                when {
+                                    // Provider already linked to THIS user → treat as success (no-op)
+                                    msg.contains("User has already been linked to the given provider.") -> {
+                                        val user = Firebase.auth.currentUser
+                                        updatedOnResultFunc(
+                                            Result.success(
+                                                FacebookSignInResult(
+                                                    user = user,
+                                                    credential = FacebookCredentialPayload.IdTokenWithNonce(
+                                                        idToken = result?.authenticationToken()
+                                                            ?.tokenString().orEmpty(),
+                                                        nonce = nonce
+                                                    )
+                                                )
+                                            )
+                                        )
+                                    }
+
+                                    // Credential belongs to ANOTHER Firebase user
+                                    msg.contains("This credential is already associated with a different user account.") -> {
+                                        if (linkAccount) {
+                                            val signedIn =
+                                                Firebase.auth.signInWithCredential(credential)
+                                            updatedOnResultFunc(
+                                                Result.success(
+                                                    FacebookSignInResult(
+                                                        user = signedIn.user,
+                                                        credential = FacebookCredentialPayload.IdTokenWithNonce(
+                                                            idToken = result?.authenticationToken()
+                                                                ?.tokenString().orEmpty(),
+                                                            nonce = nonce
+                                                        )
+                                                    )
+                                                )
+                                            )
+                                        } else {
+                                            updatedOnResultFunc(Result.failure(e))
+                                        }
+                                    }
+
+                                    else -> {
+                                        updatedOnResultFunc(Result.failure(e))
+                                    }
+                                }
                             }
                         }
                     }
@@ -190,4 +238,17 @@ private fun sha256(input: String): String {
         CC_SHA256(it.addressOf(0), inputData.size.convert(), hashedData.refTo(0))
     }
     return hashedData.toByteArray().toHexString(HexFormat.Default)
+}
+
+@OptIn(kotlin.io.encoding.ExperimentalEncodingApi::class)
+private fun fbUidFromIdToken(idToken: String): String? {
+    val parts = idToken.split('.')
+    if (parts.size != 3) return null
+    val payload = parts[1]
+        .replace('-', '+')
+        .replace('_', '/')
+        .let { it + "=".repeat((4 - it.length % 4) % 4) }
+    val json = kotlin.io.encoding.Base64.decode(payload).decodeToString()
+    val m = """"sub"\s*:\s*"([^"]+)"""".toRegex().find(json)
+    return m?.groupValues?.get(1)
 }
