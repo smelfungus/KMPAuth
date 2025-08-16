@@ -184,7 +184,7 @@ public actual fun FacebookButtonUiContainer(
                                                 FacebookSignInResult(
                                                     user = user,
                                                     credential = FacebookCredentialPayload.IdTokenWithNonce(
-                                                        idToken = result?.authenticationToken()
+                                                        idToken = result.authenticationToken()
                                                             ?.tokenString().orEmpty(),
                                                         nonce = nonce
                                                     )
@@ -203,7 +203,7 @@ public actual fun FacebookButtonUiContainer(
                                                     FacebookSignInResult(
                                                         user = signedIn.user,
                                                         credential = FacebookCredentialPayload.IdTokenWithNonce(
-                                                            idToken = result?.authenticationToken()
+                                                            idToken = result.authenticationToken()
                                                                 ?.tokenString().orEmpty(),
                                                             nonce = nonce
                                                         )
