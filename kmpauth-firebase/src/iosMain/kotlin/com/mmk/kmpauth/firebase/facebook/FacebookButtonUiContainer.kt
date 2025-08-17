@@ -10,6 +10,8 @@ import androidx.compose.ui.Modifier
 import cocoapods.FBSDKLoginKit.FBSDKLoginConfiguration
 import cocoapods.FBSDKLoginKit.FBSDKLoginManager
 import cocoapods.FBSDKLoginKit.FBSDKLoginTrackingLimited
+import com.mmk.kmpauth.core.KMPAuthError
+import com.mmk.kmpauth.core.KMPAuthErrorType
 import com.mmk.kmpauth.core.KMPAuthInternalApi
 import com.mmk.kmpauth.core.UiContainerScope
 import com.mmk.kmpauth.core.logger.currentLogger
@@ -82,7 +84,7 @@ public actual fun FacebookButtonUiContainer(
                 val rootVC = getRootViewController()
                 if (rootVC == null) {
                     currentLogger.log("Root View Controller is null")
-                    updatedOnResultFunc(Result.failure(IllegalStateException("Facebook sign-in was unsuccessful")))
+                    updatedOnResultFunc(Result.failure(KMPAuthError(type = KMPAuthErrorType.UI)))
                     return
                 }
 
@@ -101,18 +103,18 @@ public actual fun FacebookButtonUiContainer(
                     completion = { result, error ->
                         if (error != null) {
                             currentLogger.log("Facebook Login failed with error: ${error.localizedDescription}")
-                            updatedOnResultFunc(Result.failure(IllegalStateException(error.localizedDescription)))
+                            updatedOnResultFunc(Result.failure(KMPAuthError(type = KMPAuthErrorType.UNKNOWN, cause = error)))
                             return@logInFromViewController
                         }
                         if (result?.isCancelled() == true) {
-                            updatedOnResultFunc(Result.failure(IllegalStateException("Facebook sign-in was cancelled")))
+                            updatedOnResultFunc(Result.failure(KMPAuthError(type = KMPAuthErrorType.USER_CANCELLED)))
                             return@logInFromViewController
                         }
 
                         coroutineScope.launch {
                             val idToken = result?.authenticationToken()?.tokenString()
                                 ?: run {
-                                    updatedOnResultFunc(Result.failure(IllegalStateException("Facebook sign-in was unsuccessful")))
+                                    updatedOnResultFunc(Result.failure(KMPAuthError(type = KMPAuthErrorType.NO_ID_TOKEN)))
                                     return@launch
                                 }
 
@@ -159,7 +161,7 @@ public actual fun FacebookButtonUiContainer(
                                 val user = firebaseAuthResult.user
                                 if (user == null) {
                                     currentLogger.log("Firebase sign-in failed: Firebase user is null")
-                                    updatedOnResultFunc(Result.failure(IllegalStateException("Facebook sign-in was unsuccessful")))
+                                    updatedOnResultFunc(Result.failure(KMPAuthError(type = KMPAuthErrorType.NO_FIREBASE_USER)))
                                 } else {
                                     currentLogger.log("Firebase sign-in successful")
                                     val result = FacebookSignInResult(
@@ -213,12 +215,12 @@ public actual fun FacebookButtonUiContainer(
                                                 )
                                             )
                                         } else {
-                                            updatedOnResultFunc(Result.failure(e))
+                                            updatedOnResultFunc(Result.failure(KMPAuthError(type = KMPAuthErrorType.UNKNOWN, cause = e)))
                                         }
                                     }
 
                                     else -> {
-                                        updatedOnResultFunc(Result.failure(e))
+                                        updatedOnResultFunc(Result.failure(KMPAuthError(type = KMPAuthErrorType.UNKNOWN, cause = e)))
                                     }
                                 }
                             }

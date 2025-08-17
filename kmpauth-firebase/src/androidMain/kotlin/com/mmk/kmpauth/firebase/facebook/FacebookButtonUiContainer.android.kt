@@ -17,6 +17,8 @@ import com.facebook.FacebookException
 import com.facebook.login.LoginManager
 import com.facebook.login.LoginResult
 import com.mmk.kmpauth.core.KMPAuth
+import com.mmk.kmpauth.core.KMPAuthError
+import com.mmk.kmpauth.core.KMPAuthErrorType
 import com.mmk.kmpauth.core.KMPAuthInternalApi
 import com.mmk.kmpauth.core.UiContainerScope
 import com.mmk.kmpauth.core.getActivity
@@ -88,7 +90,7 @@ public actual fun FacebookButtonUiContainer(
         object : UiContainerScope {
             override fun onClick() {
                 if (activity == null) {
-                    updatedOnResult(Result.failure(IllegalStateException("Facebook sign-in was unsuccessful")))
+                    updatedOnResult(Result.failure(KMPAuthError(type = KMPAuthErrorType.UI)))
                     return
                 }
                 // Prevent stale session issues
@@ -150,7 +152,7 @@ private fun facebookSignInCallback(
                 val user = firebaseAuthResult.user
                 if (user == null) {
                     currentLogger.log("Facebook sign-in failed with error: Firebase user is null")
-                    updatedOnResult(Result.failure(IllegalStateException("Facebook sign-in was unsuccessful")))
+                    updatedOnResult(Result.failure(KMPAuthError(type = KMPAuthErrorType.NO_FIREBASE_USER)))
                 } else {
                     currentLogger.log("Facebook sign-in successful")
                     val result = FacebookSignInResult(
@@ -199,24 +201,24 @@ private fun facebookSignInCallback(
                                     } catch (signInError: Exception) {
                                         if (signInError is CancellationException) throw signInError
                                         currentLogger.log("Facebook sign-in failed with existing account: ${signInError.message}")
-                                        updatedOnResult(Result.failure(signInError))
+                                        updatedOnResult(Result.failure(KMPAuthError(type = KMPAuthErrorType.UNKNOWN, cause = signInError)))
                                     }
                                 } else {
                                     currentLogger.log("Facebook sign-in failed with error code: ${e.errorCode}, message: ${e.message}")
-                                    updatedOnResult(Result.failure(e))
+                                    updatedOnResult(Result.failure(KMPAuthError(type = KMPAuthErrorType.UNKNOWN, cause = e)))
                                 }
                             }
 
                             else -> {
                                 currentLogger.log("Facebook sign-in failed with error code: ${e.errorCode}, message: ${e.message}")
-                                updatedOnResult(Result.failure(e))
+                                updatedOnResult(Result.failure(KMPAuthError(type = KMPAuthErrorType.UNKNOWN, cause = e)))
                             }
                         }
                     }
 
                     else -> {
                         currentLogger.log("Facebook sign-in failed with error: ${e.message}")
-                        updatedOnResult(Result.failure(e))
+                        updatedOnResult(Result.failure(KMPAuthError(type = KMPAuthErrorType.UNKNOWN, cause = e)))
                     }
                 }
             }
@@ -224,10 +226,10 @@ private fun facebookSignInCallback(
     }
 
     override fun onCancel() {
-        updatedOnResult(Result.failure(IllegalStateException("Facebook sign-in was cancelled")))
+        updatedOnResult(Result.failure(KMPAuthError(type = KMPAuthErrorType.USER_CANCELLED)))
     }
 
     override fun onError(error: FacebookException) {
-        updatedOnResult(Result.failure(IllegalStateException("Facebook sign-in was unsuccessful")))
+        updatedOnResult(Result.failure(KMPAuthError(type = KMPAuthErrorType.UNKNOWN, cause = error)))
     }
 }
