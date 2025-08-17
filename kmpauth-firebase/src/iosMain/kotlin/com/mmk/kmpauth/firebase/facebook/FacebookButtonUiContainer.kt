@@ -23,13 +23,17 @@ import io.ktor.util.generateNonce
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.convert
-import kotlinx.cinterop.refTo
 import kotlinx.cinterop.usePinned
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import platform.CoreCrypto.CC_SHA256
 import platform.CoreCrypto.CC_SHA256_DIGEST_LENGTH
 import platform.UIKit.UIApplication
-import platform.UIKit.UIWindow
+import platform.UIKit.UISceneActivationStateForegroundActive
+import platform.UIKit.UIViewController
 import platform.UIKit.UIWindowScene
 import kotlin.coroutines.cancellation.CancellationException
 
@@ -75,16 +79,14 @@ public actual fun FacebookButtonUiContainer(
             override fun onClick() {
                 val loginManager = FBSDKLoginManager()
 
-                val rootVCList = UIApplication.sharedApplication.connectedScenes.mapNotNull {
-                    ((it as? UIWindowScene)?.windows?.firstOrNull() as? UIWindow)?.rootViewController
-                }
-
-                val rootVC = rootVCList.firstOrNull()
+                val rootVC = getRootViewController()
                 if (rootVC == null) {
                     currentLogger.log("Root View Controller is null")
                     updatedOnResultFunc(Result.failure(IllegalStateException("Root View Controller is null")))
                     return
                 }
+
+                loginManager.logOut()
 
                 val nonce = generateNonce()
                 val hashedNonce = sha256(nonce)
@@ -114,7 +116,7 @@ public actual fun FacebookButtonUiContainer(
                                     return@launch
                                 }
 
-                            val facebookUid = fbUidFromIdToken(idToken)
+                            val facebookUid = extractFacebookUserId(idToken)
 
                             val credential = OAuthProvider.credential(
                                 providerId = "facebook.com",
@@ -230,25 +232,100 @@ public actual fun FacebookButtonUiContainer(
     Box(modifier = modifier) { uiContainerScope.content() }
 }
 
+/**
+ * Generates SHA256 hash of the input string.
+ * Used for hashing the nonce before sending to Facebook.
+ */
 @OptIn(ExperimentalForeignApi::class, ExperimentalStdlibApi::class)
 private fun sha256(input: String): String {
     val hashedData = UByteArray(CC_SHA256_DIGEST_LENGTH)
     val inputData = input.encodeToByteArray()
-    inputData.usePinned {
-        CC_SHA256(it.addressOf(0), inputData.size.convert(), hashedData.refTo(0))
+
+    inputData.usePinned { inputPinned ->
+        hashedData.usePinned { hashedPinned ->
+            CC_SHA256(
+                inputPinned.addressOf(0),
+                inputData.size.convert(),
+                hashedPinned.addressOf(0)
+            )
+        }
     }
+
     return hashedData.toByteArray().toHexString(HexFormat.Default)
 }
 
-@OptIn(kotlin.io.encoding.ExperimentalEncodingApi::class)
-private fun fbUidFromIdToken(idToken: String): String? {
-    val parts = idToken.split('.')
-    if (parts.size != 3) return null
-    val payload = parts[1]
-        .replace('-', '+')
-        .replace('_', '/')
-        .let { it + "=".repeat((4 - it.length % 4) % 4) }
-    val json = kotlin.io.encoding.Base64.decode(payload).decodeToString()
-    val m = """"sub"\s*:\s*"([^"]+)"""".toRegex().find(json)
-    return m?.groupValues?.get(1)
+private fun getRootViewController(): UIViewController? {
+    // Get the first active window scene's key window
+    val activeWindow = UIApplication.sharedApplication.connectedScenes
+        .mapNotNull { it as? UIWindowScene }
+        .filter { it.activationState == UISceneActivationStateForegroundActive }
+        .flatMap { it.windows.toList() }
+        .firstOrNull { it.isKeyWindow() }
+
+    // Return the root view controller, with iOS 12 fallback
+    return activeWindow?.rootViewController
+        ?: UIApplication.sharedApplication.keyWindow?.rootViewController
+}
+
+/**
+ * Robustly extracts the Facebook User ID (sub claim) from a JWT ID token.
+ * Uses proper JSON parsing instead of regex for reliability.
+ *
+ * @param idToken The JWT ID token from Facebook
+ * @return The Facebook User ID or null if extraction fails
+ */
+@OptIn(kotlin.io.encoding.ExperimentalEncodingApi::class, KMPAuthInternalApi::class)
+private fun extractFacebookUserId(idToken: String): String? {
+    try {
+        // JWT consists of three parts: header.payload.signature
+        val parts = idToken.split('.')
+        if (parts.size != 3) {
+            currentLogger.log("Invalid JWT format: expected 3 parts, got ${parts.size}")
+            return null
+        }
+
+        // Extract and decode the payload (second part)
+        val payload = parts[1]
+
+        // JWT uses base64url encoding, need to convert to standard base64
+        val base64Payload = payload
+            .replace('-', '+')
+            .replace('_', '/')
+
+        // Add padding if necessary (base64 requires padding to be multiple of 4)
+        val paddedPayload = when (base64Payload.length % 4) {
+            2 -> "$base64Payload=="
+            3 -> "$base64Payload="
+            else -> base64Payload
+        }
+
+        // Decode base64 to get JSON string
+        val jsonBytes = kotlin.io.encoding.Base64.decode(paddedPayload)
+        val jsonString = jsonBytes.decodeToString()
+
+        // Parse JSON and extract 'sub' claim
+        val jsonElement = Json.parseToJsonElement(jsonString)
+        val jsonObject = jsonElement.jsonObject
+
+        // Extract the 'sub' claim (Facebook User ID)
+        val sub = jsonObject["sub"]?.jsonPrimitive?.contentOrNull
+
+        if (sub == null) {
+            currentLogger.log("No 'sub' claim found in JWT payload")
+        } else {
+            currentLogger.log("Successfully extracted Facebook UID: $sub")
+
+            // Optional: Log other useful claims for debugging
+            // val aud = jsonObject["aud"]?.jsonPrimitive?.contentOrNull
+            // val iss = jsonObject["iss"]?.jsonPrimitive?.contentOrNull
+            // val exp = jsonObject["exp"]?.jsonPrimitive?.longOrNull
+            // currentLogger.log("JWT Claims - aud: $aud, iss: $iss, exp: $exp")
+        }
+
+        return sub
+
+    } catch (e: Exception) {
+        currentLogger.log("Failed to extract Facebook UID from JWT: ${e.message}")
+        return null
+    }
 }
