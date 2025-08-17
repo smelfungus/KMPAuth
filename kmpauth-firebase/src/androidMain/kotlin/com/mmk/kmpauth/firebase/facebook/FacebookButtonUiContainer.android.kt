@@ -88,7 +88,7 @@ public actual fun FacebookButtonUiContainer(
         object : UiContainerScope {
             override fun onClick() {
                 if (activity == null) {
-                    updatedOnResult(Result.failure(IllegalStateException("Activity is null")))
+                    updatedOnResult(Result.failure(IllegalStateException("Facebook sign-in was unsuccessful")))
                     return
                 }
                 // Prevent stale session issues
@@ -141,7 +141,7 @@ private fun facebookSignInCallback(
                 }
 
                 val firebaseAuthResult = if (linkAccount && currentUser != null) {
-                    currentLogger.log("Linking Facebook account with current firebase user: ${currentUser.uid}")
+                    currentLogger.log("Linking Facebook account with current Firebase user: ${currentUser.uid}")
                     currentUser.linkWithCredential(authCredential)
                 } else {
                     currentLogger.log("Signing in with Facebook account on Firebase")
@@ -149,10 +149,10 @@ private fun facebookSignInCallback(
                 }
                 val user = firebaseAuthResult.user
                 if (user == null) {
-                    currentLogger.log("Firebase sign-in failed: Firebase user is null")
-                    updatedOnResult(Result.failure(IllegalStateException("Firebase user is null")))
+                    currentLogger.log("Facebook sign-in failed with error: Firebase user is null")
+                    updatedOnResult(Result.failure(IllegalStateException("Facebook sign-in was unsuccessful")))
                 } else {
-                    currentLogger.log("Firebase sign-in successful")
+                    currentLogger.log("Facebook sign-in successful")
                     val result = FacebookSignInResult(
                         user = user,
                         credential = FacebookCredentialPayload.AccessToken(token = accessToken),
@@ -198,23 +198,24 @@ private fun facebookSignInCallback(
                                         )
                                     } catch (signInError: Exception) {
                                         if (signInError is CancellationException) throw signInError
-                                        currentLogger.log("Failed to sign in with existing account: ${signInError.message}")
+                                        currentLogger.log("Facebook sign-in failed with existing account: ${signInError.message}")
                                         updatedOnResult(Result.failure(signInError))
                                     }
                                 } else {
+                                    currentLogger.log("Facebook sign-in failed with error code: ${e.errorCode}, message: ${e.message}")
                                     updatedOnResult(Result.failure(e))
                                 }
                             }
 
                             else -> {
-                                currentLogger.log("Firebase sign-in failed with error code: ${e.errorCode}, message: ${e.message}")
+                                currentLogger.log("Facebook sign-in failed with error code: ${e.errorCode}, message: ${e.message}")
                                 updatedOnResult(Result.failure(e))
                             }
                         }
                     }
 
                     else -> {
-                        currentLogger.log("Firebase sign-in failed with error: ${e.message}")
+                        currentLogger.log("Facebook sign-in failed with error: ${e.message}")
                         updatedOnResult(Result.failure(e))
                     }
                 }
@@ -223,10 +224,10 @@ private fun facebookSignInCallback(
     }
 
     override fun onCancel() {
-        updatedOnResult(Result.failure(IllegalStateException("Facebook sign-in cancelled")))
+        updatedOnResult(Result.failure(IllegalStateException("Facebook sign-in was cancelled")))
     }
 
     override fun onError(error: FacebookException) {
-        updatedOnResult(Result.failure(IllegalStateException("Facebook sign-in failed with error: ${error.message}")))
+        updatedOnResult(Result.failure(IllegalStateException("Facebook sign-in was unsuccessful")))
     }
 }

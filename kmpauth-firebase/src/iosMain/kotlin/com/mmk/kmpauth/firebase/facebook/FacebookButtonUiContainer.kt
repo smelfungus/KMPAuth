@@ -82,7 +82,7 @@ public actual fun FacebookButtonUiContainer(
                 val rootVC = getRootViewController()
                 if (rootVC == null) {
                     currentLogger.log("Root View Controller is null")
-                    updatedOnResultFunc(Result.failure(IllegalStateException("Root View Controller is null")))
+                    updatedOnResultFunc(Result.failure(IllegalStateException("Facebook sign-in was unsuccessful")))
                     return
                 }
 
@@ -105,14 +105,14 @@ public actual fun FacebookButtonUiContainer(
                             return@logInFromViewController
                         }
                         if (result?.isCancelled() == true) {
-                            updatedOnResultFunc(Result.failure(IllegalStateException("User cancelled the login process")))
+                            updatedOnResultFunc(Result.failure(IllegalStateException("Facebook sign-in was cancelled")))
                             return@logInFromViewController
                         }
 
                         coroutineScope.launch {
                             val idToken = result?.authenticationToken()?.tokenString()
                                 ?: run {
-                                    updatedOnResultFunc(Result.failure(IllegalStateException("No Facebook ID token")))
+                                    updatedOnResultFunc(Result.failure(IllegalStateException("Facebook sign-in was unsuccessful")))
                                     return@launch
                                 }
 
@@ -121,7 +121,7 @@ public actual fun FacebookButtonUiContainer(
                             val credential = OAuthProvider.credential(
                                 providerId = "facebook.com",
                                 idToken = idToken,
-                                rawNonce = nonce
+                                rawNonce = nonce,
                             )
 
                             try {
@@ -140,7 +140,7 @@ public actual fun FacebookButtonUiContainer(
                                                     credential = FacebookCredentialPayload.IdTokenWithNonce(
                                                         idToken = idToken,
                                                         nonce = nonce,
-                                                    )
+                                                    ),
                                                 )
                                             )
                                         )
@@ -159,7 +159,7 @@ public actual fun FacebookButtonUiContainer(
                                 val user = firebaseAuthResult.user
                                 if (user == null) {
                                     currentLogger.log("Firebase sign-in failed: Firebase user is null")
-                                    updatedOnResultFunc(Result.failure(IllegalStateException("Firebase user is null")))
+                                    updatedOnResultFunc(Result.failure(IllegalStateException("Facebook sign-in was unsuccessful")))
                                 } else {
                                     currentLogger.log("Firebase sign-in successful")
                                     val result = FacebookSignInResult(
@@ -188,8 +188,8 @@ public actual fun FacebookButtonUiContainer(
                                                     credential = FacebookCredentialPayload.IdTokenWithNonce(
                                                         idToken = result.authenticationToken()
                                                             ?.tokenString().orEmpty(),
-                                                        nonce = nonce
-                                                    )
+                                                        nonce = nonce,
+                                                    ),
                                                 )
                                             )
                                         )
@@ -207,8 +207,8 @@ public actual fun FacebookButtonUiContainer(
                                                         credential = FacebookCredentialPayload.IdTokenWithNonce(
                                                             idToken = result.authenticationToken()
                                                                 ?.tokenString().orEmpty(),
-                                                            nonce = nonce
-                                                        )
+                                                            nonce = nonce,
+                                                        ),
                                                     )
                                                 )
                                             )
@@ -246,7 +246,7 @@ private fun sha256(input: String): String {
             CC_SHA256(
                 inputPinned.addressOf(0),
                 inputData.size.convert(),
-                hashedPinned.addressOf(0)
+                hashedPinned.addressOf(0),
             )
         }
     }
