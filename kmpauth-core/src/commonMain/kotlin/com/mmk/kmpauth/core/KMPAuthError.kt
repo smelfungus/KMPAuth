@@ -2,8 +2,9 @@ package com.mmk.kmpauth.core
 
 public class KMPAuthError(
     public val type: KMPAuthErrorType,
+    message: String? = null,
     cause: Throwable? = null
-) : Exception(cause)
+) : Exception(message, cause)
 
 public enum class KMPAuthErrorType {
     UNKNOWN,

@@ -103,7 +103,14 @@ public actual fun FacebookButtonUiContainer(
                     completion = { result, error ->
                         if (error != null) {
                             currentLogger.log("Facebook Login failed with error: ${error.localizedDescription}")
-                            updatedOnResultFunc(Result.failure(KMPAuthError(type = KMPAuthErrorType.UNKNOWN, cause = error)))
+                            updatedOnResultFunc(
+                                Result.failure(
+                                    KMPAuthError(
+                                        type = KMPAuthErrorType.UNKNOWN,
+                                        message = error.localizedDescription,
+                                    )
+                                )
+                            )
                             return@logInFromViewController
                         }
                         if (result?.isCancelled() == true) {
@@ -215,12 +222,26 @@ public actual fun FacebookButtonUiContainer(
                                                 )
                                             )
                                         } else {
-                                            updatedOnResultFunc(Result.failure(KMPAuthError(type = KMPAuthErrorType.UNKNOWN, cause = e)))
+                                            updatedOnResultFunc(
+                                                Result.failure(
+                                                    KMPAuthError(
+                                                        type = KMPAuthErrorType.UNKNOWN,
+                                                        cause = e
+                                                    )
+                                                )
+                                            )
                                         }
                                     }
 
                                     else -> {
-                                        updatedOnResultFunc(Result.failure(KMPAuthError(type = KMPAuthErrorType.UNKNOWN, cause = e)))
+                                        updatedOnResultFunc(
+                                            Result.failure(
+                                                KMPAuthError(
+                                                    type = KMPAuthErrorType.UNKNOWN,
+                                                    cause = e
+                                                )
+                                            )
+                                        )
                                     }
                                 }
                             }
