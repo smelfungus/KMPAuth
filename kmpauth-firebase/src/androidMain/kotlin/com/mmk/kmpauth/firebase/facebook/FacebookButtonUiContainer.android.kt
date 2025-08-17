@@ -26,6 +26,7 @@ import com.mmk.kmpauth.firebase.domain.FacebookSignInResult
 
 import dev.gitlive.firebase.Firebase
 import dev.gitlive.firebase.auth.FacebookAuthProvider
+import dev.gitlive.firebase.auth.FirebaseAuthException
 import dev.gitlive.firebase.auth.auth
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -90,6 +91,8 @@ public actual fun FacebookButtonUiContainer(
                     updatedOnResult(Result.failure(IllegalStateException("Activity is null")))
                     return
                 }
+                // Prevent stale session issues
+                loginManager.logOut()
                 loginManager.logInWithReadPermissions(activity as Activity, permissions)
             }
         }
@@ -159,8 +162,62 @@ private fun facebookSignInCallback(
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
 
-                currentLogger.log("Firebase sign-in failed with error: ${e.message}")
-                updatedOnResult(Result.failure(e))
+                when (e) {
+                    is FirebaseAuthException -> {
+                        when (e.errorCode) {
+                            "ERROR_PROVIDER_ALREADY_LINKED" -> {
+                                // Provider already linked to THIS user → treat as success (no-op)
+                                val user = Firebase.auth.currentUser
+                                updatedOnResult(
+                                    Result.success(
+                                        FacebookSignInResult(
+                                            user = user,
+                                            credential = FacebookCredentialPayload.AccessToken(
+                                                token = accessToken,
+                                            ),
+                                        )
+                                    )
+                                )
+                            }
+
+                            "ERROR_CREDENTIAL_ALREADY_IN_USE" -> {
+                                // Credential belongs to ANOTHER Firebase user
+                                if (linkAccount) {
+                                    try {
+                                        val signedIn =
+                                            Firebase.auth.signInWithCredential(authCredential)
+                                        updatedOnResult(
+                                            Result.success(
+                                                FacebookSignInResult(
+                                                    user = signedIn.user,
+                                                    credential = FacebookCredentialPayload.AccessToken(
+                                                        token = accessToken,
+                                                    ),
+                                                )
+                                            )
+                                        )
+                                    } catch (signInError: Exception) {
+                                        if (signInError is CancellationException) throw signInError
+                                        currentLogger.log("Failed to sign in with existing account: ${signInError.message}")
+                                        updatedOnResult(Result.failure(signInError))
+                                    }
+                                } else {
+                                    updatedOnResult(Result.failure(e))
+                                }
+                            }
+
+                            else -> {
+                                currentLogger.log("Firebase sign-in failed with error code: ${e.errorCode}, message: ${e.message}")
+                                updatedOnResult(Result.failure(e))
+                            }
+                        }
+                    }
+
+                    else -> {
+                        currentLogger.log("Firebase sign-in failed with error: ${e.message}")
+                        updatedOnResult(Result.failure(e))
+                    }
+                }
             }
         }
     }
