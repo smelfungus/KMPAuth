@@ -32,8 +32,8 @@ import kotlinx.serialization.json.jsonPrimitive
 import platform.CoreCrypto.CC_SHA256
 import platform.CoreCrypto.CC_SHA256_DIGEST_LENGTH
 import platform.UIKit.UIApplication
-import platform.UIKit.UISceneActivationStateForegroundActive
 import platform.UIKit.UIViewController
+import platform.UIKit.UIWindow
 import platform.UIKit.UIWindowScene
 import kotlin.coroutines.cancellation.CancellationException
 
@@ -256,15 +256,19 @@ private fun sha256(input: String): String {
 
 private fun getRootViewController(): UIViewController? {
     // Get the first active window scene's key window
-    val activeWindow = UIApplication.sharedApplication.connectedScenes
-        .mapNotNull { it as? UIWindowScene }
-        .filter { it.activationState == UISceneActivationStateForegroundActive }
-        .flatMap { it.windows.toList() }
-        .firstOrNull { it.isKeyWindow() }
+    // val activeWindow = UIApplication.sharedApplication.connectedScenes
+    //     .mapNotNull { it as? UIWindowScene }
+    //     .filter { it.activationState == UISceneActivationStateForegroundActive }
+    //     .flatMap { it.windows.toList() }
+    //     .firstOrNull { it.isKeyWindow() }
 
     // Return the root view controller, with iOS 12 fallback
-    return activeWindow?.rootViewController
-        ?: UIApplication.sharedApplication.keyWindow?.rootViewController
+    // return activeWindow?.rootViewController
+    //     ?: UIApplication.sharedApplication.keyWindow?.rootViewController
+
+    return UIApplication.sharedApplication.connectedScenes.firstNotNullOfOrNull {
+        ((it as? UIWindowScene)?.windows?.firstOrNull() as? UIWindow)?.rootViewController
+    }
 }
 
 /**
