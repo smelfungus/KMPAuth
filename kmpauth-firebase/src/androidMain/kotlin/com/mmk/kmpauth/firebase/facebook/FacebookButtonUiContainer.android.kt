@@ -201,24 +201,64 @@ private fun facebookSignInCallback(
                                     } catch (signInError: Exception) {
                                         if (signInError is CancellationException) throw signInError
                                         currentLogger.log("Facebook sign-in failed with existing account: ${signInError.message}")
-                                        updatedOnResult(Result.failure(KMPAuthError(type = KMPAuthErrorType.UNKNOWN, cause = signInError)))
+                                        updatedOnResult(
+                                            Result.failure(
+                                                KMPAuthError(
+                                                    type = KMPAuthErrorType.UNKNOWN,
+                                                    cause = signInError,
+                                                )
+                                            )
+                                        )
                                     }
                                 } else {
                                     currentLogger.log("Facebook sign-in failed with error code: ${e.errorCode}, message: ${e.message}")
-                                    updatedOnResult(Result.failure(KMPAuthError(type = KMPAuthErrorType.UNKNOWN, cause = e)))
+                                    updatedOnResult(
+                                        Result.failure(
+                                            KMPAuthError(
+                                                type = KMPAuthErrorType.UNKNOWN,
+                                                cause = e,
+                                            )
+                                        )
+                                    )
                                 }
+                            }
+
+                            "ERROR_ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL" -> {
+                                currentLogger.log("Facebook sign-in failed with error: ${e.message}")
+                                updatedOnResult(
+                                    Result.failure(
+                                        KMPAuthError(
+                                            type = KMPAuthErrorType.ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL,
+                                            cause = e,
+                                        )
+                                    )
+                                )
                             }
 
                             else -> {
                                 currentLogger.log("Facebook sign-in failed with error code: ${e.errorCode}, message: ${e.message}")
-                                updatedOnResult(Result.failure(KMPAuthError(type = KMPAuthErrorType.UNKNOWN, cause = e)))
+                                updatedOnResult(
+                                    Result.failure(
+                                        KMPAuthError(
+                                            type = KMPAuthErrorType.UNKNOWN,
+                                            cause = e,
+                                        )
+                                    )
+                                )
                             }
                         }
                     }
 
                     else -> {
                         currentLogger.log("Facebook sign-in failed with error: ${e.message}")
-                        updatedOnResult(Result.failure(KMPAuthError(type = KMPAuthErrorType.UNKNOWN, cause = e)))
+                        updatedOnResult(
+                            Result.failure(
+                                KMPAuthError(
+                                    type = KMPAuthErrorType.UNKNOWN,
+                                    cause = e,
+                                )
+                            )
+                        )
                     }
                 }
             }
@@ -230,6 +270,13 @@ private fun facebookSignInCallback(
     }
 
     override fun onError(error: FacebookException) {
-        updatedOnResult(Result.failure(KMPAuthError(type = KMPAuthErrorType.UNKNOWN, cause = error)))
+        updatedOnResult(
+            Result.failure(
+                KMPAuthError(
+                    type = KMPAuthErrorType.UNKNOWN,
+                    cause = error,
+                )
+            )
+        )
     }
 }

@@ -226,11 +226,22 @@ public actual fun FacebookButtonUiContainer(
                                                 Result.failure(
                                                     KMPAuthError(
                                                         type = KMPAuthErrorType.UNKNOWN,
-                                                        cause = e
+                                                        cause = e,
                                                     )
                                                 )
                                             )
                                         }
+                                    }
+
+                                    msg.contains("An account already exists with the same email address but different sign-in credentials. Sign in using a provider associated with this email address.") -> {
+                                        updatedOnResultFunc(
+                                            Result.failure(
+                                                KMPAuthError(
+                                                    type = KMPAuthErrorType.ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL,
+                                                    cause = e,
+                                                )
+                                            )
+                                        )
                                     }
 
                                     else -> {
@@ -238,7 +249,7 @@ public actual fun FacebookButtonUiContainer(
                                             Result.failure(
                                                 KMPAuthError(
                                                     type = KMPAuthErrorType.UNKNOWN,
-                                                    cause = e
+                                                    cause = e,
                                                 )
                                             )
                                         )
