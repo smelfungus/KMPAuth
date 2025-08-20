@@ -16,6 +16,7 @@ import com.facebook.FacebookCallback
 import com.facebook.FacebookException
 import com.facebook.login.LoginManager
 import com.facebook.login.LoginResult
+import com.mmk.kmpauth.core.FirebaseAuthErrorType
 import com.mmk.kmpauth.core.KMPAuth
 import com.mmk.kmpauth.core.KMPAuthError
 import com.mmk.kmpauth.core.KMPAuthErrorType
@@ -25,6 +26,7 @@ import com.mmk.kmpauth.core.getActivity
 import com.mmk.kmpauth.core.logger.currentLogger
 import com.mmk.kmpauth.firebase.domain.FacebookCredentialPayload
 import com.mmk.kmpauth.firebase.domain.FacebookSignInResult
+import com.mmk.kmpauth.firebase.getAuthErrorType
 
 import dev.gitlive.firebase.Firebase
 import dev.gitlive.firebase.auth.FacebookAuthProvider
@@ -166,8 +168,21 @@ private fun facebookSignInCallback(
 
                 when (e) {
                     is FirebaseAuthException -> {
-                        when (e.errorCode) {
-                            "ERROR_PROVIDER_ALREADY_LINKED" -> {
+                        val errorType = getAuthErrorType(e)
+                        when (errorType) {
+                            FirebaseAuthErrorType.UNKNOWN -> {
+                                currentLogger.log("Facebook sign-in failed with error code: ${e.errorCode}, message: ${e.message}")
+                                updatedOnResult(
+                                    Result.failure(
+                                        KMPAuthError(
+                                            type = KMPAuthErrorType.UNKNOWN,
+                                            cause = e,
+                                        )
+                                    )
+                                )
+                            }
+
+                            FirebaseAuthErrorType.PROVIDER_ALREADY_LINKED -> {
                                 // Provider already linked to THIS user → treat as success (no-op)
                                 val user = Firebase.auth.currentUser
                                 updatedOnResult(
@@ -182,7 +197,7 @@ private fun facebookSignInCallback(
                                 )
                             }
 
-                            "ERROR_CREDENTIAL_ALREADY_IN_USE" -> {
+                            FirebaseAuthErrorType.CREDENTIAL_ALREADY_IN_USE -> {
                                 // Credential belongs to ANOTHER Firebase user
                                 if (linkAccount) {
                                     try {
@@ -223,24 +238,12 @@ private fun facebookSignInCallback(
                                 }
                             }
 
-                            "ERROR_ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL" -> {
+                            FirebaseAuthErrorType.ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL -> {
                                 currentLogger.log("Facebook sign-in failed with error: ${e.message}")
                                 updatedOnResult(
                                     Result.failure(
                                         KMPAuthError(
                                             type = KMPAuthErrorType.ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL,
-                                            cause = e,
-                                        )
-                                    )
-                                )
-                            }
-
-                            else -> {
-                                currentLogger.log("Facebook sign-in failed with error code: ${e.errorCode}, message: ${e.message}")
-                                updatedOnResult(
-                                    Result.failure(
-                                        KMPAuthError(
-                                            type = KMPAuthErrorType.UNKNOWN,
                                             cause = e,
                                         )
                                     )

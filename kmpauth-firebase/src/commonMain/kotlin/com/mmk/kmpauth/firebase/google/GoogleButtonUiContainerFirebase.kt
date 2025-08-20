@@ -5,11 +5,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
+import com.mmk.kmpauth.core.FirebaseAuthErrorType
+import com.mmk.kmpauth.core.KMPAuthError
+import com.mmk.kmpauth.core.KMPAuthErrorType
 import com.mmk.kmpauth.core.KMPAuthInternalApi
 import com.mmk.kmpauth.core.UiContainerScope
 import com.mmk.kmpauth.core.logger.currentLogger
+import com.mmk.kmpauth.firebase.getAuthErrorType
 import com.mmk.kmpauth.google.GoogleButtonUiContainer
 import dev.gitlive.firebase.Firebase
+import dev.gitlive.firebase.auth.FirebaseAuthException
 import dev.gitlive.firebase.auth.FirebaseUser
 import dev.gitlive.firebase.auth.GoogleAuthProvider
 import dev.gitlive.firebase.auth.auth
@@ -46,7 +51,6 @@ public fun GoogleButtonUiContainerFirebase(
     onResult: (Result<FirebaseUser?>) -> Unit,
     content: @Composable UiContainerScope.() -> Unit,
 ) {
-
     val updatedOnResult by rememberUpdatedState(onResult)
     val coroutineScope = rememberCoroutineScope()
     GoogleButtonUiContainer(
@@ -58,7 +62,14 @@ public fun GoogleButtonUiContainerFirebase(
             val accessToken = googleUser?.accessToken
             if (idToken == null) {
                 currentLogger.log("Google idToken is null")
-                updatedOnResult(Result.failure(IllegalStateException("Idtoken is null")))
+                updatedOnResult(
+                    Result.failure(
+                        KMPAuthError(
+                            type = KMPAuthErrorType.NO_ID_TOKEN,
+                            cause = null,
+                        )
+                    )
+                )
                 return@GoogleButtonUiContainer
             }
             val authCredential = GoogleAuthProvider.credential(idToken, accessToken)
@@ -73,20 +84,105 @@ public fun GoogleButtonUiContainerFirebase(
                     }
                     if (result.user == null) {
                         currentLogger.log("Firebase user is null")
-                        updatedOnResult(Result.failure(IllegalStateException("Firebase Null user")))
+                        updatedOnResult(
+                            Result.failure(
+                                KMPAuthError(
+                                    type = KMPAuthErrorType.NO_FIREBASE_USER,
+                                    cause = null,
+                                )
+                            )
+                        )
+                    } else {
+                        updatedOnResult(Result.success(result.user))
                     }
-                    else updatedOnResult(Result.success(result.user))
                 } catch (e: Exception) {
                     if (e is CancellationException) throw e
-                    currentLogger.log("Google sign-in failed with exception: $e")
-                    updatedOnResult(Result.failure(e))
+
+                    when (e) {
+                        is FirebaseAuthException -> {
+                            val errorType = getAuthErrorType(e)
+                            when (errorType) {
+                                FirebaseAuthErrorType.UNKNOWN -> {
+                                    currentLogger.log("Google sign-in failed with exception: $e")
+                                    updatedOnResult(
+                                        Result.failure(
+                                            KMPAuthError(
+                                                type = KMPAuthErrorType.UNKNOWN,
+                                                cause = e,
+                                            )
+                                        )
+                                    )
+                                }
+
+                                FirebaseAuthErrorType.PROVIDER_ALREADY_LINKED -> {
+                                    // Provider already linked to THIS user → treat as success (no-op)
+                                    val user = Firebase.auth.currentUser
+                                    updatedOnResult(Result.success(user))
+                                }
+
+                                FirebaseAuthErrorType.CREDENTIAL_ALREADY_IN_USE -> {
+                                    // Credential belongs to ANOTHER Firebase user
+                                    if (linkAccount) {
+                                        try {
+                                            val signedIn =
+                                                Firebase.auth.signInWithCredential(authCredential)
+                                            updatedOnResult(Result.success(signedIn.user))
+                                        } catch (signInError: Exception) {
+                                            if (signInError is CancellationException) throw signInError
+                                            currentLogger.log("Google sign-in failed with existing account: ${signInError.message}")
+                                            updatedOnResult(
+                                                Result.failure(
+                                                    KMPAuthError(
+                                                        type = KMPAuthErrorType.UNKNOWN,
+                                                        cause = signInError,
+                                                    )
+                                                )
+                                            )
+                                        }
+                                    } else {
+                                        currentLogger.log("Google sign-in failed with error message: ${e.message}")
+                                        updatedOnResult(
+                                            Result.failure(
+                                                KMPAuthError(
+                                                    type = KMPAuthErrorType.UNKNOWN,
+                                                    cause = e,
+                                                )
+                                            )
+                                        )
+                                    }
+                                }
+
+                                FirebaseAuthErrorType.ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL -> {
+                                    currentLogger.log("Google sign-in failed with error: ${e.message}")
+                                    updatedOnResult(
+                                        Result.failure(
+                                            KMPAuthError(
+                                                type = KMPAuthErrorType.ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL,
+                                                cause = e,
+                                            )
+                                        )
+                                    )
+                                }
+                            }
+                        }
+
+                        else -> {
+                            currentLogger.log("Google sign-in failed with exception: $e")
+                            updatedOnResult(
+                                Result.failure(
+                                    KMPAuthError(
+                                        type = KMPAuthErrorType.UNKNOWN,
+                                        cause = e,
+                                    )
+                                )
+                            )
+                        }
+                    }
                 }
             }
-
         },
-        content = content
+        content = content,
     )
-
 }
 
 @Deprecated(
@@ -105,7 +201,6 @@ public fun GoogleButtonUiContainerFirebase(
         linkAccount = false,
         filterByAuthorizedAccounts = false,
         onResult = onResult,
-        content = content
+        content = content,
     )
 }
-

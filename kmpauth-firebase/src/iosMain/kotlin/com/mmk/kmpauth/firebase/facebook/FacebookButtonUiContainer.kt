@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import cocoapods.FBSDKLoginKit.FBSDKLoginConfiguration
 import cocoapods.FBSDKLoginKit.FBSDKLoginManager
 import cocoapods.FBSDKLoginKit.FBSDKLoginTrackingLimited
+import com.mmk.kmpauth.core.FirebaseAuthErrorType
 import com.mmk.kmpauth.core.KMPAuthError
 import com.mmk.kmpauth.core.KMPAuthErrorType
 import com.mmk.kmpauth.core.KMPAuthInternalApi
@@ -17,7 +18,9 @@ import com.mmk.kmpauth.core.UiContainerScope
 import com.mmk.kmpauth.core.logger.currentLogger
 import com.mmk.kmpauth.firebase.domain.FacebookCredentialPayload
 import com.mmk.kmpauth.firebase.domain.FacebookSignInResult
+import com.mmk.kmpauth.firebase.getAuthErrorType
 import dev.gitlive.firebase.Firebase
+import dev.gitlive.firebase.auth.FirebaseAuthException
 import dev.gitlive.firebase.auth.FirebaseUser
 import dev.gitlive.firebase.auth.OAuthProvider
 import dev.gitlive.firebase.auth.auth
@@ -184,67 +187,85 @@ public actual fun FacebookButtonUiContainer(
                             } catch (e: Exception) {
                                 if (e is CancellationException) throw e
 
-                                val msg = (e.message ?: "")
-
-                                when {
-                                    // Provider already linked to THIS user → treat as success (no-op)
-                                    msg.contains("User has already been linked to the given provider.") -> {
-                                        val user = Firebase.auth.currentUser
-                                        updatedOnResultFunc(
-                                            Result.success(
-                                                FacebookSignInResult(
-                                                    user = user,
-                                                    credential = FacebookCredentialPayload.IdTokenWithNonce(
-                                                        idToken = result.authenticationToken()
-                                                            ?.tokenString().orEmpty(),
-                                                        nonce = nonce,
-                                                    ),
-                                                )
-                                            )
-                                        )
-                                    }
-
-                                    // Credential belongs to ANOTHER Firebase user
-                                    msg.contains("This credential is already associated with a different user account.") -> {
-                                        if (linkAccount) {
-                                            val signedIn =
-                                                Firebase.auth.signInWithCredential(credential)
-                                            updatedOnResultFunc(
-                                                Result.success(
-                                                    FacebookSignInResult(
-                                                        user = signedIn.user,
-                                                        credential = FacebookCredentialPayload.IdTokenWithNonce(
-                                                            idToken = result.authenticationToken()
-                                                                ?.tokenString().orEmpty(),
-                                                            nonce = nonce,
-                                                        ),
+                                when (e) {
+                                    is FirebaseAuthException -> {
+                                        val errorType = getAuthErrorType(e)
+                                        when (errorType) {
+                                            FirebaseAuthErrorType.UNKNOWN -> {
+                                                currentLogger.log("Facebook sign-in failed with exception: $e")
+                                                updatedOnResultFunc(
+                                                    Result.failure(
+                                                        KMPAuthError(
+                                                            type = KMPAuthErrorType.UNKNOWN,
+                                                            cause = e,
+                                                        )
                                                     )
                                                 )
-                                            )
-                                        } else {
-                                            updatedOnResultFunc(
-                                                Result.failure(
-                                                    KMPAuthError(
-                                                        type = KMPAuthErrorType.UNKNOWN,
-                                                        cause = e,
+                                            }
+
+                                            FirebaseAuthErrorType.PROVIDER_ALREADY_LINKED -> {
+                                                // Provider already linked to THIS user → treat as success (no-op)
+                                                val user = Firebase.auth.currentUser
+                                                updatedOnResultFunc(
+                                                    Result.success(
+                                                        FacebookSignInResult(
+                                                            user = user,
+                                                            credential = FacebookCredentialPayload.IdTokenWithNonce(
+                                                                idToken = result.authenticationToken()
+                                                                    ?.tokenString().orEmpty(),
+                                                                nonce = nonce,
+                                                            ),
+                                                        )
                                                     )
                                                 )
-                                            )
+                                            }
+
+                                            FirebaseAuthErrorType.CREDENTIAL_ALREADY_IN_USE -> {
+                                                // Credential belongs to ANOTHER Firebase user
+                                                if (linkAccount) {
+                                                    val signedIn =
+                                                        Firebase.auth.signInWithCredential(
+                                                            credential
+                                                        )
+                                                    updatedOnResultFunc(
+                                                        Result.success(
+                                                            FacebookSignInResult(
+                                                                user = signedIn.user,
+                                                                credential = FacebookCredentialPayload.IdTokenWithNonce(
+                                                                    idToken = result.authenticationToken()
+                                                                        ?.tokenString().orEmpty(),
+                                                                    nonce = nonce,
+                                                                ),
+                                                            )
+                                                        )
+                                                    )
+                                                } else {
+                                                    updatedOnResultFunc(
+                                                        Result.failure(
+                                                            KMPAuthError(
+                                                                type = KMPAuthErrorType.UNKNOWN,
+                                                                cause = e,
+                                                            )
+                                                        )
+                                                    )
+                                                }
+                                            }
+
+                                            FirebaseAuthErrorType.ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL -> {
+                                                updatedOnResultFunc(
+                                                    Result.failure(
+                                                        KMPAuthError(
+                                                            type = KMPAuthErrorType.ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL,
+                                                            cause = e,
+                                                        )
+                                                    )
+                                                )
+                                            }
                                         }
                                     }
 
-                                    msg.contains("An account already exists with the same email address but different sign-in credentials. Sign in using a provider associated with this email address.") -> {
-                                        updatedOnResultFunc(
-                                            Result.failure(
-                                                KMPAuthError(
-                                                    type = KMPAuthErrorType.ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL,
-                                                    cause = e,
-                                                )
-                                            )
-                                        )
-                                    }
-
                                     else -> {
+                                        currentLogger.log("Facebook sign-in failed with exception: $e")
                                         updatedOnResultFunc(
                                             Result.failure(
                                                 KMPAuthError(
