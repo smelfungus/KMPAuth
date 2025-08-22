@@ -33,7 +33,7 @@ public expect fun FacebookButtonUiContainer(
         FacebookSignInRequestScope.PublicProfile,
         FacebookSignInRequestScope.Email
     ),
-    onResult: (Result<FacebookSignInResult?>) -> Unit,
+    onResult: (Result<FacebookSignInResult>) -> Unit,
     linkAccount: Boolean = false,
     content: @Composable UiContainerScope.() -> Unit,
 )

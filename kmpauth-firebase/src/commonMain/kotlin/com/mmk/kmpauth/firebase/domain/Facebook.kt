@@ -14,5 +14,5 @@ public sealed class FacebookCredentialPayload {
 
 public data class FacebookSignInResult(
     val user: FirebaseUser?,
-    val credential: FacebookCredentialPayload?,
+    val credential: FacebookCredentialPayload,
 )

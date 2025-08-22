@@ -12,7 +12,7 @@ import com.mmk.kmpauth.firebase.domain.FacebookSignInResult
 public actual fun FacebookButtonUiContainer(
     modifier: Modifier,
     requestScopes: List<FacebookSignInRequestScope>,
-    onResult: (Result<FacebookSignInResult?>) -> Unit,
+    onResult: (Result<FacebookSignInResult>) -> Unit,
     linkAccount: Boolean,
     content: @Composable (UiContainerScope.() -> Unit)
 ) {

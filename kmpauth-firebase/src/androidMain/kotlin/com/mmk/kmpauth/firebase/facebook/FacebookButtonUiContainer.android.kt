@@ -62,7 +62,7 @@ private val loginManager: LoginManager by lazy { LoginManager.getInstance() }
 public actual fun FacebookButtonUiContainer(
     modifier: Modifier,
     requestScopes: List<FacebookSignInRequestScope>,
-    onResult: (Result<FacebookSignInResult?>) -> Unit,
+    onResult: (Result<FacebookSignInResult>) -> Unit,
     linkAccount: Boolean,
     content: @Composable (UiContainerScope.() -> Unit)
 ) {
@@ -108,7 +108,7 @@ public actual fun FacebookButtonUiContainer(
 private fun facebookSignInCallback(
     coroutineScope: CoroutineScope,
     linkAccount: Boolean,
-    updatedOnResult: (Result<FacebookSignInResult?>) -> Unit
+    updatedOnResult: (Result<FacebookSignInResult>) -> Unit,
 ): FacebookCallback<LoginResult> = object : FacebookCallback<LoginResult> {
     override fun onSuccess(result: LoginResult) {
         currentLogger.log("Facebook Login successful, attempting to sign in with Firebase")

@@ -65,7 +65,7 @@ import kotlin.coroutines.cancellation.CancellationException
 public actual fun FacebookButtonUiContainer(
     modifier: Modifier,
     requestScopes: List<FacebookSignInRequestScope>,
-    onResult: (Result<FacebookSignInResult?>) -> Unit,
+    onResult: (Result<FacebookSignInResult>) -> Unit,
     linkAccount: Boolean,
     content: @Composable UiContainerScope.() -> Unit,
 ) {
@@ -207,16 +207,25 @@ public actual fun FacebookButtonUiContainer(
                                                 // Provider already linked to THIS user → treat as success (no-op)
                                                 val user = Firebase.auth.currentUser
                                                 updatedOnResultFunc(
-                                                    Result.success(
-                                                        FacebookSignInResult(
-                                                            user = user,
-                                                            credential = FacebookCredentialPayload.IdTokenWithNonce(
-                                                                idToken = result.authenticationToken()
-                                                                    ?.tokenString().orEmpty(),
-                                                                nonce = nonce,
-                                                            ),
+                                                    result
+                                                        .authenticationToken()
+                                                        ?.tokenString()
+                                                        ?.let {
+                                                            Result.success(
+                                                                FacebookSignInResult(
+                                                                    user = user,
+                                                                    credential = FacebookCredentialPayload.IdTokenWithNonce(
+                                                                        idToken = it,
+                                                                        nonce = nonce,
+                                                                    ),
+                                                                )
+                                                            )
+                                                        }
+                                                        ?: Result.failure(
+                                                            KMPAuthError(
+                                                                type = KMPAuthErrorType.NO_ID_TOKEN,
+                                                            )
                                                         )
-                                                    )
                                                 )
                                             }
 
@@ -229,14 +238,23 @@ public actual fun FacebookButtonUiContainer(
                                                         )
                                                     updatedOnResultFunc(
                                                         Result.success(
-                                                            FacebookSignInResult(
-                                                                user = signedIn.user,
-                                                                credential = FacebookCredentialPayload.IdTokenWithNonce(
-                                                                    idToken = result.authenticationToken()
-                                                                        ?.tokenString().orEmpty(),
-                                                                    nonce = nonce,
-                                                                ),
-                                                            )
+                                                            result
+                                                                .authenticationToken()
+                                                                ?.tokenString()
+                                                                ?.let {
+                                                                    FacebookSignInResult(
+                                                                        user = signedIn.user,
+                                                                        credential = FacebookCredentialPayload.IdTokenWithNonce(
+                                                                            idToken = it,
+                                                                            nonce = nonce,
+                                                                        ),
+                                                                    )
+                                                                }
+                                                                ?: Result.failure(
+                                                                    KMPAuthError(
+                                                                        type = KMPAuthErrorType.NO_ID_TOKEN,
+                                                                    )
+                                                                )
                                                         )
                                                     )
                                                 } else {
