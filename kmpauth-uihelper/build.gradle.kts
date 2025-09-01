@@ -32,7 +32,7 @@ kotlin {
         binaries.library()
     }
     jvm()
-    iosX64()
+    // iosX64()
     iosArm64()
     iosSimulatorArm64()
 
