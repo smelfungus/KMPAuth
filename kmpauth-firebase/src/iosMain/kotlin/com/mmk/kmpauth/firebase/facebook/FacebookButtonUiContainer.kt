@@ -237,11 +237,11 @@ public actual fun FacebookButtonUiContainer(
                                                             credential
                                                         )
                                                     updatedOnResultFunc(
-                                                        Result.success(
-                                                            result
-                                                                .authenticationToken()
-                                                                ?.tokenString()
-                                                                ?.let {
+                                                        result
+                                                            .authenticationToken()
+                                                            ?.tokenString()
+                                                            ?.let {
+                                                                Result.success(
                                                                     FacebookSignInResult(
                                                                         user = signedIn.user,
                                                                         credential = FacebookCredentialPayload.IdTokenWithNonce(
@@ -249,13 +249,13 @@ public actual fun FacebookButtonUiContainer(
                                                                             nonce = nonce,
                                                                         ),
                                                                     )
-                                                                }
-                                                                ?: Result.failure(
-                                                                    KMPAuthError(
-                                                                        type = KMPAuthErrorType.NO_ID_TOKEN,
-                                                                    )
                                                                 )
-                                                        )
+                                                            }
+                                                            ?: Result.failure(
+                                                                KMPAuthError(
+                                                                    type = KMPAuthErrorType.NO_ID_TOKEN,
+                                                                )
+                                                            )
                                                     )
                                                 } else {
                                                     updatedOnResultFunc(
