@@ -10,6 +10,7 @@ import kotlinx.cinterop.ExperimentalForeignApi
 import platform.Foundation.NSError
 
 public actual fun getAuthErrorType(e: FirebaseAuthException): FirebaseAuthErrorType {
+    // FIXME: That will ALWAYS fail
     val nsError = (e.cause as? NSError)
     return if (nsError != null && nsError.domain == FIRAuthErrorDomain) {
         val stringErrorCode = nsError.userInfo[FIRAuthErrorUserInfoNameKey] as? String
@@ -33,12 +34,7 @@ public actual fun getAuthErrorType(e: FirebaseAuthException): FirebaseAuthErrorT
             }
         } else {
             val errorCode = nsError.code
-            when (errorCode) {
-                17015L -> FirebaseAuthErrorType.PROVIDER_ALREADY_LINKED
-                17025L -> FirebaseAuthErrorType.CREDENTIAL_ALREADY_IN_USE
-                17012L -> FirebaseAuthErrorType.ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL
-                else -> FirebaseAuthErrorType.UNKNOWN
-            }
+            getAuthErrorType(errorCode)
         }
     } else {
         // Fallback

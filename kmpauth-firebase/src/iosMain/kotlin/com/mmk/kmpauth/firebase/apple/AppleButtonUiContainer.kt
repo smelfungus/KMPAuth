@@ -9,9 +9,13 @@ import androidx.compose.ui.Modifier
 import cocoapods.FirebaseAuth.FIRAuth
 import cocoapods.FirebaseAuth.FIRAuthDataResult
 import cocoapods.FirebaseAuth.FIROAuthProvider
+import com.mmk.kmpauth.core.FirebaseAuthErrorType
+import com.mmk.kmpauth.core.KMPAuthError
+import com.mmk.kmpauth.core.KMPAuthErrorType
 import com.mmk.kmpauth.core.KMPAuthInternalApi
 import com.mmk.kmpauth.core.UiContainerScope
 import com.mmk.kmpauth.core.logger.currentLogger
+import com.mmk.kmpauth.firebase.getAuthErrorType
 import dev.gitlive.firebase.Firebase
 import dev.gitlive.firebase.auth.FirebaseUser
 import dev.gitlive.firebase.auth.auth
@@ -194,17 +198,38 @@ private class ASAuthorizationControllerDelegate(
 
         val appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential
         if (currentNonce == null) {
-            onResult(Result.failure(IllegalStateException("Invalid state: A login callback was received, but no login request was sent.")))
+            onResult(
+                Result.failure(
+                    KMPAuthError(
+                        type = KMPAuthErrorType.UNKNOWN,
+                        cause = IllegalStateException("Invalid state: A login callback was received, but no login request was sent."),
+                    )
+                )
+            )
             return
         }
         val appleIdToken = appleIDCredential?.identityToken
         if (appleIdToken == null) {
-            onResult(Result.failure(IllegalStateException("Unable to fetch identity token")))
+            onResult(
+                Result.failure(
+                    KMPAuthError(
+                        type = KMPAuthErrorType.NO_ID_TOKEN,
+                        cause = IllegalStateException("Unable to fetch identity token"),
+                    )
+                )
+            )
             return
         }
         val idTokenString = NSString.create(appleIdToken, NSUTF8StringEncoding)?.toString()
         if (idTokenString == null) {
-            onResult(Result.failure(IllegalStateException("Unable to serialize token string from data")))
+            onResult(
+                Result.failure(
+                    KMPAuthError(
+                        type = KMPAuthErrorType.UNKNOWN,
+                        cause = IllegalStateException("Unable to serialize token string from data"),
+                    )
+                )
+            )
             return
         }
 
@@ -216,6 +241,51 @@ private class ASAuthorizationControllerDelegate(
         val currentUser = FIRAuth.auth().currentUser()
 
         val handleResult: (FIRAuthDataResult?, NSError?) -> Unit = { firAuthDataResult, nsError ->
+            val errorType = nsError?.let { getAuthErrorType(it.code) }
+            if (errorType != null) {
+                when (errorType) {
+                    FirebaseAuthErrorType.UNKNOWN -> {
+                        onResult(
+                            Result.failure(
+                                KMPAuthError(
+                                    type = KMPAuthErrorType.UNKNOWN,
+                                    cause = IllegalStateException(nsError.localizedFailureReason),
+                                )
+                            )
+                        )
+                    }
+
+                    FirebaseAuthErrorType.PROVIDER_ALREADY_LINKED -> {
+                        onResult(Result.success(Firebase.auth.currentUser))
+                    }
+
+                    FirebaseAuthErrorType.CREDENTIAL_ALREADY_IN_USE -> {
+                        if (linkAccount) {
+                            onResult(Result.success(Firebase.auth.currentUser))
+                        } else {
+                            onResult(
+                                Result.failure(
+                                    KMPAuthError(
+                                        type = KMPAuthErrorType.UNKNOWN,
+                                        cause = IllegalStateException(nsError.localizedFailureReason),
+                                    )
+                                )
+                            )
+                        }
+                    }
+
+                    FirebaseAuthErrorType.ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL -> {
+                        onResult(
+                            Result.failure(
+                                KMPAuthError(
+                                    type = KMPAuthErrorType.ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL,
+                                    cause = IllegalStateException(nsError.localizedFailureReason),
+                                )
+                            )
+                        )
+                    }
+                }
+            }
             if (nsError != null || firAuthDataResult == null) {
                 onResult(Result.failure(IllegalStateException(nsError?.localizedFailureReason)))
             } else {
@@ -236,8 +306,4 @@ private class ASAuthorizationControllerDelegate(
     ) {
         onResult(Result.failure(IllegalStateException(didCompleteWithError.localizedFailureReason)))
     }
-
-
 }
-
-
