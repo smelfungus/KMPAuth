@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -54,22 +55,16 @@ public fun AppleSignInButtonIconOnly(
 ) {
     val buttonColor = getButtonColor(mode)
     val borderStroke = getBorderStroke(mode)
-    var buttonHeight by remember { mutableStateOf(44) }
-    val localDensity = LocalDensity.current
 
     Button(
-        modifier = modifier
-            .onGloballyPositioned { coordinates ->
-                buttonHeight =
-                    with(localDensity) { coordinates.size.height.toDp().value.roundToInt() }
-            },
+        modifier = modifier,
         contentPadding = PaddingValues(0.dp),
         onClick = onClick,
         shape = shape,
         colors = buttonColor,
         border = borderStroke,
     ) {
-        AppleIcon(modifier = Modifier.size(buttonHeight.dp), mode = mode)
+        AppleIcon(modifier = Modifier.fillMaxSize(), mode = mode)
 
     }
 }
