@@ -3,6 +3,7 @@ package com.mmk.kmpauth.firebase.apple
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.mmk.kmpauth.core.UiContainerScope
+import com.mmk.kmpauth.firebase.domain.AppleSignInResult
 import dev.gitlive.firebase.auth.FirebaseUser
 
 /**
@@ -26,7 +27,7 @@ import dev.gitlive.firebase.auth.FirebaseUser
 public actual fun AppleButtonUiContainer(
     modifier: Modifier,
     requestScopes: List<AppleSignInRequestScope>,
-    onResult: (Result<FirebaseUser?>) -> Unit,
+    onResult: (Result<AppleSignInResult?>) -> Unit,
     content: @Composable UiContainerScope.() -> Unit
 ) {
 }
@@ -35,9 +36,8 @@ public actual fun AppleButtonUiContainer(
 public actual fun AppleButtonUiContainer(
     modifier: Modifier,
     requestScopes: List<AppleSignInRequestScope>,
-    onResult: (Result<FirebaseUser?>) -> Unit,
+    onResult: (Result<AppleSignInResult?>) -> Unit,
     linkAccount: Boolean,
     content: @Composable UiContainerScope.() -> Unit,
 ){
-
 }

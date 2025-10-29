@@ -15,6 +15,7 @@ import com.mmk.kmpauth.core.KMPAuthErrorType
 import com.mmk.kmpauth.core.KMPAuthInternalApi
 import com.mmk.kmpauth.core.UiContainerScope
 import com.mmk.kmpauth.core.logger.currentLogger
+import com.mmk.kmpauth.firebase.domain.AppleSignInResult
 import com.mmk.kmpauth.firebase.getAuthErrorType
 import dev.gitlive.firebase.Firebase
 import dev.gitlive.firebase.auth.FirebaseUser
@@ -74,7 +75,7 @@ private var currentNonce: String? = null
 public actual fun AppleButtonUiContainer(
     modifier: Modifier,
     requestScopes: List<AppleSignInRequestScope>,
-    onResult: (Result<FirebaseUser?>) -> Unit,
+    onResult: (Result<AppleSignInResult?>) -> Unit,
     linkAccount: Boolean,
     content: @Composable UiContainerScope.() -> Unit,
 ) {
@@ -108,7 +109,7 @@ public actual fun AppleButtonUiContainer(
 public actual fun AppleButtonUiContainer(
     modifier: Modifier,
     requestScopes: List<AppleSignInRequestScope>,
-    onResult: (Result<FirebaseUser?>) -> Unit,
+    onResult: (Result<AppleSignInResult?>) -> Unit,
     content: @Composable UiContainerScope.() -> Unit,
 ) {
     AppleButtonUiContainer(modifier, requestScopes, onResult, false, content)
@@ -184,7 +185,7 @@ private class PresentationContextProvider :
 
 private class ASAuthorizationControllerDelegate(
     private val linkAccount: Boolean,
-    private val onResult: (Result<FirebaseUser?>) -> Unit
+    private val onResult: (Result<AppleSignInResult?>) -> Unit
 ) :
     ASAuthorizationControllerDelegateProtocol, NSObject() {
 
@@ -256,12 +257,26 @@ private class ASAuthorizationControllerDelegate(
                     }
 
                     FirebaseAuthErrorType.PROVIDER_ALREADY_LINKED -> {
-                        onResult(Result.success(Firebase.auth.currentUser))
+                        onResult(
+                            Result.success(
+                                AppleSignInResult(
+                                    user = Firebase.auth.currentUser,
+                                    nonce = currentNonce!!,
+                                )
+                            )
+                        )
                     }
 
                     FirebaseAuthErrorType.CREDENTIAL_ALREADY_IN_USE -> {
                         if (linkAccount) {
-                            onResult(Result.success(Firebase.auth.currentUser))
+                            onResult(
+                                Result.success(
+                                    AppleSignInResult(
+                                        user = Firebase.auth.currentUser,
+                                        nonce = currentNonce!!,
+                                    )
+                                )
+                            )
                         } else {
                             onResult(
                                 Result.failure(
@@ -289,7 +304,14 @@ private class ASAuthorizationControllerDelegate(
             if (nsError != null || firAuthDataResult == null) {
                 onResult(Result.failure(IllegalStateException(nsError?.localizedFailureReason)))
             } else {
-                onResult(Result.success(Firebase.auth.currentUser))
+                onResult(
+                    Result.success(
+                        AppleSignInResult(
+                            user = Firebase.auth.currentUser,
+                            nonce = currentNonce!!,
+                        )
+                    )
+                )
             }
         }
 

@@ -3,6 +3,7 @@ package com.mmk.kmpauth.firebase.apple
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.mmk.kmpauth.core.UiContainerScope
+import com.mmk.kmpauth.firebase.domain.AppleSignInResult
 import com.mmk.kmpauth.firebase.oauth.OAuthContainer
 import dev.gitlive.firebase.auth.FirebaseUser
 import dev.gitlive.firebase.auth.OAuthProvider
@@ -30,7 +31,7 @@ import dev.gitlive.firebase.auth.OAuthProvider
 public actual fun AppleButtonUiContainer(
     modifier: Modifier,
     requestScopes: List<AppleSignInRequestScope>,
-    onResult: (Result<FirebaseUser?>) -> Unit,
+    onResult: (Result<AppleSignInResult?>) -> Unit,
     linkAccount: Boolean,
     content: @Composable UiContainerScope.() -> Unit,
 ) {
@@ -44,7 +45,8 @@ public actual fun AppleButtonUiContainer(
     OAuthContainer(
         modifier = modifier,
         oAuthProvider = oAuthProvider,
-        onResult = onResult,
+        // TODO: Check if we need/can get nonce
+        onResult = TODO(),
         linkAccount = linkAccount,
         content = content
     )
@@ -59,7 +61,7 @@ public actual fun AppleButtonUiContainer(
 public actual fun AppleButtonUiContainer(
     modifier: Modifier,
     requestScopes: List<AppleSignInRequestScope>,
-    onResult: (Result<FirebaseUser?>) -> Unit,
+    onResult: (Result<AppleSignInResult?>) -> Unit,
     content: @Composable UiContainerScope.() -> Unit,
 ) {
     AppleButtonUiContainer(modifier, requestScopes, onResult, false, content)
