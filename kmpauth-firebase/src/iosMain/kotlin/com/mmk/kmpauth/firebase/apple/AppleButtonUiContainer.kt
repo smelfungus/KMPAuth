@@ -234,6 +234,18 @@ private class ASAuthorizationControllerDelegate(
             return
         }
 
+        onResult(
+            Result.success(
+                AppleSignInResult(
+                    user = null,
+                    idToken = idTokenString,
+                    nonce = currentNonce!!,
+                )
+            )
+        )
+
+        return
+
         // Initialize a Firebase credential, including the user's full name.
         val credential = FIROAuthProvider.appleCredentialWithIDToken(
             idTokenString, currentNonce, appleIDCredential.fullName
@@ -261,6 +273,7 @@ private class ASAuthorizationControllerDelegate(
                             Result.success(
                                 AppleSignInResult(
                                     user = Firebase.auth.currentUser,
+                                    idToken = idTokenString,
                                     nonce = currentNonce!!,
                                 )
                             )
@@ -273,6 +286,7 @@ private class ASAuthorizationControllerDelegate(
                                 Result.success(
                                     AppleSignInResult(
                                         user = Firebase.auth.currentUser,
+                                        idToken = idTokenString,
                                         nonce = currentNonce!!,
                                     )
                                 )
@@ -308,6 +322,7 @@ private class ASAuthorizationControllerDelegate(
                     Result.success(
                         AppleSignInResult(
                             user = Firebase.auth.currentUser,
+                            idToken = idTokenString,
                             nonce = currentNonce!!,
                         )
                     )
